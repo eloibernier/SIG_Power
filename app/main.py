@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from contextlib import contextmanager
+from datetime import date
 from pathlib import Path
 
 import psycopg
@@ -20,6 +21,21 @@ from psycopg.rows import dict_row
 STATIC = Path(__file__).parent / "static"
 
 app = FastAPI(title="PJM FTR Topology Divergence", docs_url="/api/docs")
+
+
+def parse_month(value: str) -> date:
+    """Reject a bad month with 400 rather than letting Postgres raise a 500.
+
+    Starlette renders an unhandled exception as *plain text*, which means a browser doing
+    `res.json()` gets a parse error rather than a status code -- and an uncaught rejection
+    takes the whole page down. Validate at the edge so failures stay structured.
+    """
+    try:
+        return date.fromisoformat(value)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            400, f"month must be an ISO date such as 2025-07-01; got {value!r}"
+        )
 
 
 @contextmanager
@@ -136,7 +152,7 @@ def gap(
             WHERE month = %s AND class_type = %s
             ORDER BY mean_gap DESC
             """,
-            (month, class_type),
+            (parse_month(month), class_type),
         )
         rows = [dict(r) for r in cur.fetchall()]
     for r in rows:
@@ -169,7 +185,7 @@ def zone_detail(
             ORDER BY abs(gap) DESC
             LIMIT 15
             """,
-            (zone_code, month, class_type),
+            (zone_code, parse_month(month), class_type),
         )
         nodes = [dict(r) for r in cur.fetchall()]
 
@@ -181,7 +197,7 @@ def zone_detail(
             WHERE zone = %s AND month = %s AND class_type = %s
             GROUP BY 1 ORDER BY 1
             """,
-            (zone_code, month, class_type),
+            (zone_code, parse_month(month), class_type),
         )
         hist = [{"bucket": r["bucket"], "n": r["n"]} for r in cur.fetchall()]
 
@@ -195,7 +211,7 @@ def zone_detail(
             ORDER BY abs(spread_gap) DESC
             LIMIT 15
             """,
-            (zone_code, month, class_type),
+            (zone_code, parse_month(month), class_type),
         )
         paths = [dict(r) for r in cur.fetchall()]
 
@@ -230,7 +246,7 @@ def anchoring(month: str = Query(...), class_type: str = Query("OnPeak")) -> JSO
             WHERE month = %s AND class_type = %s
             ORDER BY abs(anchoring_edge) DESC NULLS LAST
             """,
-            (month, class_type),
+            (parse_month(month), class_type),
         )
         rows = [dict(r) for r in cur.fetchall()]
     for r in rows:

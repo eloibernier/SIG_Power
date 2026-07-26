@@ -139,6 +139,13 @@
   #tip b { display: block; margin-bottom: 3px; font-size: 12.5px; }
   #tip .r { color: var(--text-secondary); }
   .empty { color: var(--muted); font-size: 12.5px; padding: 10px 0; }
+
+  #banner {
+    margin: 0; padding: 10px 24px; font-size: 13px; line-height: 1.45;
+    border-bottom: 1px solid var(--border);
+  }
+  #banner[data-kind="error"]  { background: var(--pos-1); color: var(--text-primary); }
+  #banner[data-kind="info"]   { background: var(--neutral); color: var(--text-secondary); }
 </style>
 </head>
 <body>
@@ -158,6 +165,8 @@
   </p>
   <p class="counts" id="counts">loading&hellip;</p>
 </header>
+
+<p id="banner" hidden role="alert"></p>
 
 <div class="controls">
   <div class="ctl">
@@ -433,25 +442,76 @@ async function selectZone(code) {
   document.getElementById("panel").innerHTML = stats + nodes + paths;
 }
 
-async function load() {
-  const meta = await (await fetch("/api/meta")).json();
-  const mSel = document.getElementById("month"), kSel = document.getElementById("klass");
-  mSel.innerHTML = meta.months.map(m => `<option${m === "2025-07-01" ? " selected" : ""}>${m}</option>`).join("");
-  kSel.innerHTML = meta.class_types.map(c => `<option${c === "OnPeak" ? " selected" : ""}>${c}</option>`).join("");
-  document.getElementById("counts").textContent =
-    `${meta.counts.node_months.toLocaleString()} node-months of congestion · ` +
-    `${meta.counts.bids.toLocaleString()} FTR auction bids · ` +
-    `${meta.counts.active_nodes.toLocaleString()} active pricing nodes`;
+// A failed fetch must never take the page down. Starlette renders unhandled server
+// exceptions as plain text, so res.json() rejects rather than returning a status --
+// an uncaught rejection there leaves a blank map with no clue why.
+async function getJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`${res.status} ${res.statusText} on ${url}${body ? " — " + body.slice(0, 300) : ""}`);
+  }
+  return res.json();
+}
 
-  GEO = await (await fetch("/api/geo")).json();
-  computeFit([...GEO.states.features, ...GEO.zones.features]);
+function showBanner(msg, kind = "error") {
+  const el = document.getElementById("banner");
+  el.hidden = false;
+  el.dataset.kind = kind;
+  el.textContent = msg;
+}
+
+async function load() {
+  let meta = null;
+  try {
+    meta = await getJSON("/api/meta");
+    const mSel = document.getElementById("month"), kSel = document.getElementById("klass");
+    mSel.innerHTML = meta.months.map(m => `<option${m === "2025-07-01" ? " selected" : ""}>${m}</option>`).join("");
+    kSel.innerHTML = meta.class_types.map(c => `<option${c === "OnPeak" ? " selected" : ""}>${c}</option>`).join("");
+    document.getElementById("counts").textContent =
+      `${meta.counts.node_months.toLocaleString()} node-months of congestion · ` +
+      `${meta.counts.bids.toLocaleString()} FTR auction bids · ` +
+      `${meta.counts.active_nodes.toLocaleString()} active pricing nodes`;
+  } catch (e) {
+    showBanner(`Could not reach the API: ${e.message}`);
+    return;
+  }
+
+  try {
+    GEO = await getJSON("/api/geo");
+    if (!GEO.zones.features.length) {
+      showBanner("No zone geometry loaded. Run etl/load_geo.py, then sql/02_zone_crosswalk.sql.");
+      return;
+    }
+    computeFit([...GEO.states.features, ...GEO.zones.features]);
+  } catch (e) {
+    showBanner(`Could not load map geometry: ${e.message}`);
+    return;
+  }
+
+  // Geometry is present but the facts may not be — draw the map either way, so an
+  // empty warehouse looks like an empty map rather than a broken page.
+  if (!meta.months.length) {
+    showBanner(
+      "Map geometry is loaded but there is no congestion data yet. Run `python etl/ingest.py`, " +
+      "then sql/03_transform.sql and sql/04_analysis_views.sql.", "info");
+    GAP = { zones: [] };
+    draw();
+    return;
+  }
   await refresh();
 }
 
 async function refresh() {
   const m = document.getElementById("month").value;
   const k = document.getElementById("klass").value;
-  GAP = await (await fetch(`/api/gap?month=${m}&class_type=${k}`)).json();
+  try {
+    GAP = await getJSON(`/api/gap?month=${encodeURIComponent(m)}&class_type=${encodeURIComponent(k)}`);
+    document.getElementById("banner").hidden = true;
+  } catch (e) {
+    showBanner(`No values for ${m} / ${k}: ${e.message}`);
+    GAP = { zones: [] };
+  }
   draw();
   if (SELECTED) await selectZone(SELECTED);
 }
