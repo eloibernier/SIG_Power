@@ -137,6 +137,19 @@ around a column-name assumption and had to re-frame the claim once it didn't rec
 The analysis survived because the quantity I was mapping didn't change — but that was luck,
 not planning.
 
+**"How do you know the pipeline is reproducible?"**
+Because I ran it end to end and it broke. My schema file opened with `DROP TABLE CASCADE`,
+so re-running it wiped eight million rows. Worse, the `ingest_log` table used
+`CREATE IF NOT EXISTS` and therefore *survived* the drop — so the bookkeeping still claimed
+all fourteen partitions were loaded while the tables were empty, and the next ingest would
+have skipped every feed and reported success against an empty warehouse. Silent, and it
+would have looked fine.
+
+The fix was to make the schema non-destructive and move teardown into `00_reset.sql`, which
+drops the tables and clears the log in one transaction, because those two things are not
+independent. That's the kind of thing the JD's "maintain internal data systems" bullet is
+really about — a pipeline you can't safely re-run isn't a system, it's a one-off.
+
 ## Rate limits, if it comes up
 
 PJM caps non-member API users at 6 requests/minute. The client throttles to 5.5, retries
