@@ -22,24 +22,19 @@
     --pos-1: #f6d0cb; --pos-2: #f0a89f; --pos-3: #e87b72; --pos-4: #e34948;
     --neg-1: #cddcf2; --neg-2: #9dbfe8; --neg-3: #6099dd; --neg-4: #2a78d6;
     --nodata:         #e8e7e2;
-    --state-line:     #d6d5cd;
+    --land:           #f2f1ed;   /* states outside PJM */
+    --land-pjm:       #eae9e3;   /* states PJM operates in */
+    --state-line:     #dcdbd3;
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
       color-scheme: dark;
-      --surface-1:      #1a1a19;
-      --page:           #0d0d0d;
-      --text-primary:   #ffffff;
-      --text-secondary: #c3c2b7;
-      --muted:          #898781;
-      --gridline:       #2c2c2a;
-      --baseline:       #383835;
-      --border:         rgba(255,255,255,0.10);
-      --neutral:        #383835;
+      --surface-1: #1a1a19; --page: #0d0d0d; --text-primary: #fff;
+      --text-secondary: #c3c2b7; --muted: #898781; --gridline: #2c2c2a;
+      --baseline: #383835; --border: rgba(255,255,255,0.10); --neutral: #383835;
       --pos-1: #6b3a37; --pos-2: #9c4640; --pos-3: #c2544e; --pos-4: #e66767;
       --neg-1: #2d4a6b; --neg-2: #2a5c9c; --neg-3: #3070c4; --neg-4: #3987e5;
-      --nodata:         #232322;
-      --state-line:     #34342f;
+      --nodata: #232322; --land: #141413; --land-pjm: #1e1e1c; --state-line: #34342f;
     }
   }
   :root[data-theme="dark"] {
@@ -49,103 +44,119 @@
     --baseline: #383835; --border: rgba(255,255,255,0.10); --neutral: #383835;
     --pos-1: #6b3a37; --pos-2: #9c4640; --pos-3: #c2544e; --pos-4: #e66767;
     --neg-1: #2d4a6b; --neg-2: #2a5c9c; --neg-3: #3070c4; --neg-4: #3987e5;
-    --nodata: #232322; --state-line: #34342f;
+    --nodata: #232322; --land: #141413; --land-pjm: #1e1e1c; --state-line: #34342f;
   }
 
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
     margin: 0; background: var(--page); color: var(--text-primary);
     font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; flex-direction: column;
   }
-  header {
-    padding: 18px 24px 14px; border-bottom: 1px solid var(--border);
-    background: var(--surface-1);
+
+  header { padding: 14px 22px 10px; border-bottom: 1px solid var(--border); background: var(--surface-1); }
+  h1 { margin: 0 0 3px; font-size: 18px; font-weight: 620; letter-spacing: -0.01em; }
+  .sub { color: var(--text-secondary); font-size: 12.5px; max-width: 92ch; margin: 0; }
+  .sub .quiet { color: var(--muted); }
+  details.about { margin-top: 4px; }
+  details.about summary {
+    cursor: pointer; color: var(--muted); font-size: 12px; width: fit-content;
   }
-  h1 { margin: 0 0 4px; font-size: 19px; font-weight: 620; letter-spacing: -0.01em; }
-  .sub { color: var(--text-secondary); font-size: 13px; max-width: 78ch; }
-  .counts { color: var(--muted); font-size: 12px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .counts { color: var(--muted); font-size: 11.5px; margin: 5px 0 0; font-variant-numeric: tabular-nums; }
+
+  #banner { margin: 0; padding: 9px 22px; font-size: 13px; border-bottom: 1px solid var(--border); }
+  #banner[data-kind="error"] { background: var(--pos-1); color: var(--text-primary); }
+  #banner[data-kind="info"]  { background: var(--neutral); color: var(--text-secondary); }
 
   .controls {
-    display: flex; gap: 14px; align-items: flex-end; flex-wrap: wrap;
-    padding: 12px 24px; border-bottom: 1px solid var(--border); background: var(--surface-1);
+    display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+    padding: 9px 22px; border-bottom: 1px solid var(--border); background: var(--surface-1);
   }
-  .ctl { display: flex; flex-direction: column; gap: 4px; }
-  .ctl label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .ctl { display: flex; flex-direction: column; gap: 3px; }
+  .ctl label { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .btnrow { display: flex; gap: 5px; }
   select, button {
-    font: inherit; padding: 6px 10px; border-radius: 7px;
+    font: inherit; font-size: 13px; padding: 5px 9px; border-radius: 7px;
     border: 1px solid var(--baseline); background: var(--surface-1); color: var(--text-primary);
   }
   button { cursor: pointer; }
+  button:hover { border-color: var(--text-secondary); }
   button[aria-pressed="true"] { border-color: var(--text-secondary); font-weight: 600; }
+  .spacer { flex: 1; }
 
-  main { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(320px,1fr); gap: 0; }
-  @media (max-width: 980px) { main { grid-template-columns: 1fr; } }
+  main { flex: 1; display: grid; grid-template-columns: minmax(0,1fr) 380px; min-height: 0; }
+  @media (max-width: 1040px) { main { grid-template-columns: 1fr; } }
 
-  #mapwrap { padding: 12px 16px 20px; overflow-x: auto; }
-  svg { display: block; width: 100%; height: auto; }
-  .zone { stroke: var(--surface-1); stroke-width: 1.1; cursor: pointer; }
-  .zone:hover { stroke: var(--text-primary); stroke-width: 2; }
-  .zone[aria-selected="true"] { stroke: var(--text-primary); stroke-width: 2.4; }
-  .state { fill: none; stroke: var(--state-line); stroke-width: .7; pointer-events: none; }
+  #mapwrap { position: relative; min-height: 0; display: flex; flex-direction: column; }
+  #map { flex: 1; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+  #map.dragging { cursor: grabbing; }
+
+  .land      { fill: var(--land);     stroke: var(--state-line); }
+  .land.pjm  { fill: var(--land-pjm); }
+  .zone      { stroke: var(--surface-1); cursor: pointer; }
+  .zone:hover { stroke: var(--text-primary); }
+  .zone[aria-selected="true"] { stroke: var(--text-primary); }
+  .slabel { fill: var(--muted); text-anchor: middle; pointer-events: none; font-weight: 500; }
   .zlabel {
-    font-size: 9.5px; font-weight: 600; fill: var(--text-primary);
-    pointer-events: none; text-anchor: middle; paint-order: stroke;
-    stroke: var(--surface-1); stroke-width: 2.6px; stroke-linejoin: round;
+    fill: var(--text-primary); text-anchor: middle; pointer-events: none; font-weight: 650;
+    paint-order: stroke; stroke: var(--surface-1); stroke-linejoin: round;
   }
-  .zval { font-size: 9px; font-weight: 500; fill: var(--text-secondary); }
+  .zval { fill: var(--text-secondary); font-weight: 500; }
+
+  .maptools {
+    position: absolute; top: 10px; right: 12px; display: flex; flex-direction: column; gap: 4px;
+  }
+  .maptools button {
+    width: 30px; height: 30px; padding: 0; font-size: 15px; line-height: 1;
+    background: var(--surface-1); box-shadow: 0 1px 3px rgba(0,0,0,.10);
+  }
+  .maptools button.wide { width: auto; padding: 0 9px; font-size: 12px; }
+
+  .legendwrap {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 7px 18px 9px; border-top: 1px solid var(--border); background: var(--surface-1);
+  }
+  .legend { display: flex; align-items: center; }
+  .legend i { display: block; width: 26px; height: 10px; }
+  .legend .lab { font-size: 10.5px; color: var(--muted); padding: 0 7px; font-variant-numeric: tabular-nums; }
+  .caption { font-size: 11.5px; color: var(--muted); margin: 0; flex: 1; min-width: 260px; }
 
   aside {
     border-left: 1px solid var(--border); background: var(--surface-1);
-    padding: 16px 20px 40px; min-height: 70vh;
+    padding: 15px 18px 40px; overflow-y: auto; min-height: 0;
   }
-  @media (max-width: 980px) { aside { border-left: none; border-top: 1px solid var(--border); } }
-  aside h2 { margin: 0 0 2px; font-size: 16px; font-weight: 620; }
-  aside .zsub { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+  @media (max-width: 1040px) { aside { border-left: none; border-top: 1px solid var(--border); } }
+  aside h2 { margin: 0 0 2px; font-size: 15.5px; font-weight: 620; }
+  aside .zsub { color: var(--muted); font-size: 12px; margin-bottom: 13px; }
 
-  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 18px; }
-  .stat {
-    border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; background: var(--page);
-  }
-  .stat .k { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-  .stat .v { font-size: 19px; font-weight: 620; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; margin-bottom: 15px; }
+  .stat { border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; background: var(--page); }
+  .stat .k { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .stat .v { font-size: 18px; font-weight: 620; font-variant-numeric: tabular-nums; margin-top: 1px; }
   .stat .u { font-size: 11px; color: var(--muted); font-weight: 400; }
 
-  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
-       color: var(--muted); margin: 20px 0 8px; font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
-  th { text-align: right; color: var(--muted); font-weight: 500; padding: 4px 6px;
-       border-bottom: 1px solid var(--gridline); font-size: 11px; }
+  h3 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em;
+       color: var(--muted); margin: 18px 0 7px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+  th { text-align: right; color: var(--muted); font-weight: 500; padding: 4px 5px;
+       border-bottom: 1px solid var(--gridline); font-size: 10.5px; }
   th:first-child, td:first-child { text-align: left; }
-  td { padding: 4px 6px; border-bottom: 1px solid var(--gridline); text-align: right; }
-  td.name { color: var(--text-secondary); max-width: 190px; overflow: hidden;
+  td { padding: 4px 5px; border-bottom: 1px solid var(--gridline); text-align: right; }
+  td.name { color: var(--text-secondary); max-width: 175px; overflow: hidden;
             text-overflow: ellipsis; white-space: nowrap; }
   .pos { color: var(--pos-4); font-weight: 600; }
   .neg { color: var(--neg-4); font-weight: 600; }
-  :root[data-theme="dark"] .pos, :root[data-theme="dark"] .neg { font-weight: 600; }
-
-  .legend { display: flex; align-items: center; gap: 0; margin: 4px 0 2px; }
-  .legend i { display: block; width: 30px; height: 11px; }
-  .legend .lab { font-size: 10.5px; color: var(--muted); padding: 0 7px;
-                 font-variant-numeric: tabular-nums; }
-  .legendwrap { padding: 0 16px 8px; }
-  .caption { font-size: 11.5px; color: var(--muted); padding: 0 16px; max-width: 70ch; }
 
   #tip {
     position: fixed; pointer-events: none; opacity: 0; transition: opacity .09s;
     background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
     padding: 8px 10px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.16);
-    z-index: 40; font-variant-numeric: tabular-nums; max-width: 260px;
+    z-index: 40; font-variant-numeric: tabular-nums; max-width: 250px;
   }
-  #tip b { display: block; margin-bottom: 3px; font-size: 12.5px; }
+  #tip b.t { display: block; margin-bottom: 3px; font-size: 12.5px; }
   #tip .r { color: var(--text-secondary); }
-  .empty { color: var(--muted); font-size: 12.5px; padding: 10px 0; }
-
-  #banner {
-    margin: 0; padding: 10px 24px; font-size: 13px; line-height: 1.45;
-    border-bottom: 1px solid var(--border);
-  }
-  #banner[data-kind="error"]  { background: var(--pos-1); color: var(--text-primary); }
-  #banner[data-kind="info"]   { background: var(--neutral); color: var(--text-secondary); }
+  .empty { color: var(--muted); font-size: 12.5px; padding: 8px 0; }
 </style>
 </head>
 <body>
@@ -153,16 +164,21 @@
 <header>
   <h1>What planned transmission upgrades do to PJM congestion, node by node</h1>
   <p class="sub">
-    For every pricing node and month, PJM's FTR credit feed publishes congestion under two
-    network topologies: a <strong>baseline</strong>, and a <strong>PROMOD case adjusted for
-    planned transmission upgrades</strong>. This maps the difference &mdash; upgrade-adjusted
-    minus baseline, in $/MWh of congestion. Positive means PJM's upgraded grid is
-    <em>more</em> congested at that node, not less.
-    <br>
-    <span style="color:var(--muted)">Both series are modelled. Neither is realized outturn
-    &mdash; see <code>etl/validate.py</code>, which reconciles them against raw hourly
-    day-ahead LMPs and shows they do not match.</span>
+    PJM's FTR credit feed publishes congestion for every node and month under two network
+    topologies: a <strong>baseline</strong>, and a <strong>PROMOD case adjusted for planned
+    transmission upgrades</strong>. The map is the difference &mdash; upgrade-adjusted minus
+    baseline, $/MWh. Red means PJM's upgraded grid is <em>more</em> congested there.
   </p>
+  <details class="about">
+    <summary>What this is not</summary>
+    <p class="sub quiet" style="margin-top:4px">
+      Both series are modelled inputs to PJM's FTR credit calculator. <code>etl/validate.py</code>
+      reconciles them against raw hourly day-ahead LMPs and shows the baseline is <em>not</em>
+      realized outturn &mdash; so this is topology versus topology, not model versus reality.
+      Zone shapes are utility service territories, not PJM's network model: PJM classifies node
+      and line locations as CEII and publishes no coordinates.
+    </p>
+  </details>
   <p class="counts" id="counts">loading&hellip;</p>
 </header>
 
@@ -182,15 +198,29 @@
     <button id="scale" aria-pressed="false">Auto</button>
   </div>
   <div class="ctl">
+    <label>Jump to</label>
+    <div class="btnrow">
+      <button data-jump="pjm">PJM</button>
+      <button data-jump="us">United States</button>
+      <button data-jump="midatl">Mid-Atlantic</button>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="ctl">
     <label for="theme">Theme</label>
     <button id="theme">Toggle</button>
   </div>
 </div>
 
 <main>
-  <div>
-    <div id="mapwrap"><svg id="map" viewBox="0 0 860 560" role="img"
-      aria-label="Choropleth of PJM transmission zones by upgrade-adjusted minus baseline congestion"></svg></div>
+  <div id="mapwrap">
+    <svg id="map" role="img"
+      aria-label="Map of PJM transmission zones coloured by upgrade-adjusted minus baseline congestion"></svg>
+    <div class="maptools">
+      <button id="zin"  title="Zoom in"  aria-label="Zoom in">+</button>
+      <button id="zout" title="Zoom out" aria-label="Zoom out">&minus;</button>
+      <button id="zfit" class="wide" title="Reset view">Reset</button>
+    </div>
     <div class="legendwrap">
       <div class="legend" id="legend"></div>
       <p class="caption" id="caption"></p>
@@ -199,7 +229,7 @@
 
   <aside>
     <h2 id="ztitle">Select a zone</h2>
-    <p class="zsub" id="zsub">Click any zone on the map to see its nodes and traded FTR paths.</p>
+    <p class="zsub" id="zsub">Click a zone on the map. Scroll to zoom, drag to pan.</p>
     <div id="panel"></div>
   </aside>
 </main>
@@ -210,45 +240,29 @@
 (() => {
 "use strict";
 
-const W = 860, H = 560, PAD = 16;
 const svg = document.getElementById("map");
 const tip = document.getElementById("tip");
 let GEO = null, GAP = null, DOMAIN = 3, AUTO = true, SELECTED = null;
+let VIEW = null;            // {x, y, w, h} in world units — this is the zoom state
+let WORLD = null;           // full extent of the projected continental US
 
 // ---------------------------------------------------------------------------
-// Albers equal-area conic. PJM spans roughly 75W-88W and 36N-42N; standard
-// parallels at 33/45 are the usual US pair. Written out rather than pulled from a
-// projection library so the page has no dependencies and works with no network.
+// Albers equal-area conic, the standard US projection. Standard parallels 29.5/45.5
+// and a -96 central meridian give the familiar continental shape; written out inline
+// so the page carries no mapping library and works with the network off.
 // ---------------------------------------------------------------------------
-const RAD = Math.PI / 180, P1 = 33 * RAD, P2 = 45 * RAD, LON0 = -81.5 * RAD, LAT0 = 38 * RAD;
+const RAD = Math.PI / 180, P1 = 29.5 * RAD, P2 = 45.5 * RAD, LON0 = -96 * RAD, LAT0 = 37.5 * RAD;
 const N = (Math.sin(P1) + Math.sin(P2)) / 2;
-const C = Math.cos(P1) ** 2 + 2 * N * Math.sin(P1);
-const RHO0 = Math.sqrt(C - 2 * N * Math.sin(LAT0)) / N;
-
-function albers(lon, lat) {
-  const theta = N * (lon * RAD - LON0);
-  const rho = Math.sqrt(C - 2 * N * Math.sin(lat * RAD)) / N;
-  return [rho * Math.sin(theta), RHO0 - rho * Math.cos(theta)];
-}
-
-let FIT = null;
-function computeFit(features) {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const f of features) eachRing(f.geometry, ring => {
-    for (const [lon, lat] of ring) {
-      const [x, y] = albers(lon, lat);
-      if (x < x0) x0 = x; if (x > x1) x1 = x;
-      if (y < y0) y0 = y; if (y > y1) y1 = y;
-    }
-  });
-  const s = Math.min((W - 2 * PAD) / (x1 - x0), (H - 2 * PAD) / (y1 - y0));
-  FIT = { s, tx: PAD - x0 * s + (W - 2 * PAD - (x1 - x0) * s) / 2,
-              ty: PAD - y0 * s + (H - 2 * PAD - (y1 - y0) * s) / 2 };
-}
+const CC = Math.cos(P1) ** 2 + 2 * N * Math.sin(P1);
+const RHO0 = Math.sqrt(CC - 2 * N * Math.sin(LAT0)) / N;
+const SCALE = 1200;   // world units; arbitrary, everything downstream is relative
 
 function project(lon, lat) {
-  const [x, y] = albers(lon, lat);
-  return [x * FIT.s + FIT.tx, y * FIT.s + FIT.ty];
+  const theta = N * (lon * RAD - LON0);
+  const rho = Math.sqrt(CC - 2 * N * Math.sin(lat * RAD)) / N;
+  // The raw conic puts north at +y (mathematical convention); SVG's y axis grows downward,
+  // so y is negated here. Without this the whole country renders upside down.
+  return [rho * Math.sin(theta) * SCALE, -(RHO0 - rho * Math.cos(theta)) * SCALE];
 }
 
 function eachRing(geom, fn) {
@@ -257,16 +271,60 @@ function eachRing(geom, fn) {
   else if (geom.type === "MultiPolygon") geom.coordinates.forEach(p => p.forEach(fn));
 }
 
+function boundsOf(features) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const f of features) eachRing(f.geometry, ring => {
+    for (const [lon, lat] of ring) {
+      const [x, y] = project(lon, lat);
+      if (x < x0) x0 = x; if (x > x1) x1 = x;
+      if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+  });
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+function boundsFromLonLat(w, s, e, n) {
+  const pts = [];
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8;
+    pts.push(project(w + (e - w) * t, s), project(w + (e - w) * t, n),
+             project(w, s + (n - s) * t), project(e, s + (n - s) * t));
+  }
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  return { x: Math.min(...xs), y: Math.min(...ys),
+           w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+}
+
+/** Fit a bounds box into the SVG's aspect ratio, with margin, and make it the view. */
+function fitTo(b, margin = 0.06) {
+  const r = svg.getBoundingClientRect();
+  const aspect = (r.width || 900) / (r.height || 600);
+  let w = b.w * (1 + margin * 2), h = b.h * (1 + margin * 2);
+  if (w / h < aspect) w = h * aspect; else h = w / aspect;
+  VIEW = { x: b.x + b.w / 2 - w / 2, y: b.y + b.h / 2 - h / 2, w, h };
+  applyView();
+}
+
+function applyView() {
+  svg.setAttribute("viewBox", `${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}`);
+  drawLabels();   // labels are sized and culled per zoom level
+}
+
+/** World units per screen pixel — everything that must stay a constant size divides by this. */
+function pxScale() {
+  const r = svg.getBoundingClientRect();
+  return VIEW.w / (r.width || 900);
+}
+
 function pathOf(geom) {
   let d = "";
   eachRing(geom, ring => {
-    // Drop sub-pixel vertices; HIFLD polygons carry far more detail than this scale shows.
     let prev = null;
     for (let i = 0; i < ring.length; i++) {
       const [x, y] = project(ring[i][0], ring[i][1]);
       if (prev && i !== ring.length - 1 &&
-          Math.abs(x - prev[0]) < 0.4 && Math.abs(y - prev[1]) < 0.4) continue;
-      d += (prev ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1);
+          Math.abs(x - prev[0]) < 0.15 && Math.abs(y - prev[1]) < 0.15) continue;
+      d += (prev ? "L" : "M") + x.toFixed(2) + " " + y.toFixed(2);
       prev = [x, y];
     }
     d += "Z";
@@ -274,7 +332,7 @@ function pathOf(geom) {
   return d;
 }
 
-// Largest ring's centroid, so labels land in the main body of a multipart zone.
+/** Centroid of the largest ring, plus that ring's area, so labels sit in the main body. */
 function labelPoint(geom) {
   let best = null, bestArea = -1;
   eachRing(geom, ring => {
@@ -288,12 +346,9 @@ function labelPoint(geom) {
     a /= 2;
     if (Math.abs(a) > bestArea) { bestArea = Math.abs(a); best = [cx / (6 * a), cy / (6 * a)]; }
   });
-  return best;
+  return best ? { p: best, area: bestArea } : null;
 }
 
-// ---------------------------------------------------------------------------
-// Diverging scale. Four steps per arm plus a neutral midpoint; a true zero means
-// "the simulation agrees with what happened", so gray belongs in the middle.
 // ---------------------------------------------------------------------------
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 function color(v) {
@@ -307,97 +362,254 @@ function color(v) {
   return css(arm + "4");
 }
 
-function renderLegend() {
-  const el = document.getElementById("legend");
-  const d = DOMAIN;
-  const steps = [
-    ["--neg-4", -d], ["--neg-3", -d * .8], ["--neg-2", -d * .55], ["--neg-1", -d * .3],
-    ["--neutral", 0],
-    ["--pos-1", d * .3], ["--pos-2", d * .55], ["--pos-3", d * .8], ["--pos-4", d],
-  ];
-  el.innerHTML =
-    `<span class="lab">&minus;${d.toFixed(1)}</span>` +
-    steps.map(([c]) => `<i style="background:${css(c)}"></i>`).join("") +
-    `<span class="lab">+${d.toFixed(1)}</span>` +
-    `<span class="lab" style="padding-left:12px">$/MWh, upgrade-adjusted &minus; baseline</span>`;
-}
-
 const fmt = (v, n = 2) => (v === null || v === undefined || Number.isNaN(v))
-  ? "&mdash;" : (v >= 0 ? "+" : "") + Number(v).toFixed(n);
+  ? "—" : (v >= 0 ? "+" : "") + Number(v).toFixed(n);
 const cls = v => (v === null || v === undefined) ? "" : (v >= 0 ? "pos" : "neg");
 
+function renderLegend() {
+  const d = DOMAIN;
+  document.getElementById("legend").innerHTML =
+    `<span class="lab">&minus;${d.toFixed(1)}</span>` +
+    ["--neg-4","--neg-3","--neg-2","--neg-1","--neutral","--pos-1","--pos-2","--pos-3","--pos-4"]
+      .map(c => `<i style="background:${css(c)}"></i>`).join("") +
+    `<span class="lab">+${d.toFixed(1)} $/MWh</span>`;
+}
+
 // ---------------------------------------------------------------------------
+// Rendering. Geometry is drawn once per data change; labels are re-laid-out on every
+// zoom because which ones fit depends on the current scale.
+// ---------------------------------------------------------------------------
+let gLand, gZones, gLabels;
 
 function draw() {
   const byZone = new Map((GAP?.zones || []).map(z => [z.zone, z]));
-  if (AUTO) {
-    const mx = Math.max(...(GAP?.zones || []).map(z => Math.abs(z.mean_gap ?? 0)), 0);
-    DOMAIN = Math.max(1, Math.ceil(mx * 2) / 2);
-  } else {
-    DOMAIN = 6;
-  }
+  DOMAIN = AUTO
+    ? Math.max(0.5, Math.ceil(Math.max(...(GAP?.zones || []).map(z => Math.abs(z.mean_gap ?? 0)), 0) * 2) / 2)
+    : 6;
   renderLegend();
 
-  const parts = [];
-  parts.push(`<g>${GEO.states.features.map(f =>
-    `<path class="state" d="${pathOf(f.geometry)}"/>`).join("")}</g>`);
+  const land = GEO.states.features.map(f =>
+    `<path class="land${f.properties.in_pjm ? " pjm" : ""}" d="${pathOf(f.geometry)}"/>`).join("");
 
-  parts.push("<g>" + GEO.zones.features.map(f => {
+  const zones = GEO.zones.features.map(f => {
     const z = byZone.get(f.properties.zone);
     const v = z ? z.mean_gap : null;
     return `<path class="zone" data-zone="${f.properties.zone}"
       aria-selected="${SELECTED === f.properties.zone}"
-      fill="${color(v)}" d="${pathOf(f.geometry)}"><title>${f.properties.label}: ${
-        v === null ? "no data" : fmt(v) + " $/MWh"}</title></path>`;
-  }).join("") + "</g>");
+      fill="${color(v)}" d="${pathOf(f.geometry)}"/>`;
+  }).join("");
 
-  // Direct labels: identity and magnitude are never carried by color alone.
-  parts.push("<g>" + GEO.zones.features.map(f => {
-    const p = labelPoint(f.geometry);
-    if (!p || !isFinite(p[0])) return "";
-    const z = byZone.get(f.properties.zone);
-    const v = z ? z.mean_gap : null;
-    return `<text class="zlabel" x="${p[0].toFixed(1)}" y="${p[1].toFixed(1)}">${f.properties.zone}` +
-           `<tspan class="zval" x="${p[0].toFixed(1)}" dy="10">${v === null ? "" : fmt(v)}</tspan></text>`;
-  }).join("") + "</g>");
-
-  svg.innerHTML = parts.join("");
+  svg.innerHTML =
+    `<g id="gland">${land}</g><g id="gzones">${zones}</g><g id="glabels"></g>`;
+  gLand = svg.querySelector("#gland");
+  gZones = svg.querySelector("#gzones");
+  gLabels = svg.querySelector("#glabels");
 
   svg.querySelectorAll(".zone").forEach(el => {
     el.addEventListener("mousemove", e => {
+      if (DRAG) return;
       const z = byZone.get(el.dataset.zone);
       const lbl = GEO.zones.features.find(f => f.properties.zone === el.dataset.zone)?.properties.label;
       tip.innerHTML = z
-        ? `<b>${lbl}</b><span class="r">upgrade adjustment</span> <b style="display:inline">${fmt(z.mean_gap)} $/MWh</b>
-           <div class="r">baseline ${fmt(z.mean_realized)} &middot; upgraded ${fmt(z.mean_sim)}</div>
-           <div class="r">${z.n_nodes} nodes &middot; ${z.n_nodes_gap_over_1} beyond &plusmn;$1</div>`
-        : `<b>${lbl}</b><span class="r">no data this month</span>`;
+        ? `<b class="t">${lbl}</b><span class="r">upgrade adjustment</span>
+           <b>${fmt(z.mean_gap)} $/MWh</b>
+           <div class="r">baseline ${fmt(z.mean_realized)} · upgraded ${fmt(z.mean_sim)}</div>
+           <div class="r">${z.n_nodes} nodes · ${z.n_nodes_gap_over_1} beyond ±$1</div>`
+        : `<b class="t">${lbl}</b><span class="r">no data this month</span>`;
       tip.style.opacity = 1;
-      tip.style.left = Math.min(e.clientX + 14, innerWidth - 275) + "px";
-      tip.style.top = (e.clientY + 16) + "px";
+      tip.style.left = Math.min(e.clientX + 14, innerWidth - 265) + "px";
+      tip.style.top = Math.min(e.clientY + 16, innerHeight - 110) + "px";
     });
     el.addEventListener("mouseleave", () => { tip.style.opacity = 0; });
-    el.addEventListener("click", () => selectZone(el.dataset.zone));
+    el.addEventListener("click", () => {
+      // A drag that ends over a zone still fires a click; ignore that one.
+      if (SUPPRESS_CLICK) { SUPPRESS_CLICK = false; return; }
+      selectZone(el.dataset.zone);
+    });
   });
 
+  applyStrokeWidths();
+  drawLabels();
+  updateCaption();
+}
+
+/** Strokes are in world units, so they have to shrink as you zoom in. */
+function applyStrokeWidths() {
+  const k = pxScale();
+  svg.querySelectorAll(".land").forEach(e => e.style.strokeWidth = (0.7 * k) + "px");
+  svg.querySelectorAll(".zone").forEach(e => e.style.strokeWidth = (0.8 * k) + "px");
+  const sel = svg.querySelector('.zone[aria-selected="true"]');
+  if (sel) sel.style.strokeWidth = (2.2 * k) + "px";
+}
+
+/**
+ * Labels, laid out greedily largest-zone-first with collision rejection in screen space.
+ * That gives progressive disclosure for free: zoom in and the rejected small-zone labels
+ * find room and appear, which is what makes the dense Mid-Atlantic legible.
+ */
+function drawLabels() {
+  if (!GEO || !gLabels) return;
+  const k = pxScale();
+  const byZone = new Map((GAP?.zones || []).map(z => [z.zone, z]));
+  const placed = [];
+  const parts = [];
+
+  const overlaps = (b) => placed.some(p =>
+    !(b.x1 < p.x0 || b.x0 > p.x1 || b.y1 < p.y0 || b.y0 > p.y1));
+
+  // State abbreviations, only once zoomed out far enough that they read as context.
+  if (VIEW.w > WORLD.w * 0.45) {
+    for (const f of GEO.states.features) {
+      const lp = labelPoint(f.geometry);
+      if (!lp || !isFinite(lp.p[0])) continue;
+      if (lp.area < (14 * k) ** 2 * 40) continue;
+      const [x, y] = lp.p, fs = 10 * k;
+      const b = { x0: x - 12 * k, x1: x + 12 * k, y0: y - fs, y1: y + fs };
+      if (overlaps(b)) continue;
+      placed.push(b);
+      parts.push(`<text class="slabel" x="${x.toFixed(1)}" y="${y.toFixed(1)}"
+        font-size="${fs.toFixed(2)}">${f.properties.state}</text>`);
+    }
+  }
+
+  // Zone labels take priority, so lay them out first into their own pass.
+  const zoneLabels = GEO.zones.features
+    .map(f => ({ f, lp: labelPoint(f.geometry) }))
+    .filter(o => o.lp && isFinite(o.lp.p[0]))
+    .sort((a, b) => b.lp.area - a.lp.area);
+
+  const zplaced = [];
+  const zoverlaps = (b) => zplaced.some(p =>
+    !(b.x1 < p.x0 || b.x0 > p.x1 || b.y1 < p.y0 || b.y0 > p.y1));
+
+  const zparts = [];
+  for (const { f, lp } of zoneLabels) {
+    const z = byZone.get(f.properties.zone);
+    const v = z ? z.mean_gap : null;
+    const [x, y] = lp.p;
+    const fs = 11 * k, vs = 9.5 * k;
+    const halfW = Math.max(f.properties.zone.length * 3.4, 15) * k;
+    const b = { x0: x - halfW, x1: x + halfW, y0: y - fs, y1: y + fs + vs };
+    if (zoverlaps(b)) continue;
+    zplaced.push(b);
+    zparts.push(
+      `<text class="zlabel" x="${x.toFixed(1)}" y="${y.toFixed(1)}"
+         font-size="${fs.toFixed(2)}" stroke-width="${(2.4 * k).toFixed(2)}">${f.properties.zone}` +
+      (v === null ? "" :
+        `<tspan class="zval" x="${x.toFixed(1)}" dy="${(vs * 1.15).toFixed(2)}"
+           font-size="${vs.toFixed(2)}">${fmt(v)}</tspan>`) +
+      `</text>`);
+  }
+
+  gLabels.innerHTML = parts.join("") + zparts.join("");
+  document.getElementById("zsub").dataset.shown = zparts.length;
+}
+
+function updateCaption() {
   const m = document.getElementById("month").value;
   const k = document.getElementById("klass").value;
-  const top = [...(GAP?.zones || [])].sort((a, b) => Math.abs(b.mean_gap) - Math.abs(a.mean_gap))[0];
+  const zs = [...(GAP?.zones || [])].sort((a, b) => Math.abs(b.mean_gap) - Math.abs(a.mean_gap));
+  const top = zs[0];
   document.getElementById("caption").innerHTML = top
-    ? `${k} congestion, ${m}. Widest divergence: <strong>${top.zone}</strong> at ${fmt(top.mean_gap)} $/MWh
-       (baseline ${fmt(top.mean_realized)}, upgraded ${fmt(top.mean_sim)}). Zone geometry is built from
-       utility service territories &mdash; PJM does not publish node coordinates.`
-    : "";
+    ? `${k}, ${m}. Widest: <strong>${top.zone}</strong> ${fmt(top.mean_gap)} $/MWh
+       (baseline ${fmt(top.mean_realized)} → upgraded ${fmt(top.mean_sim)}).
+       Scroll to zoom · drag to pan · click a zone.`
+    : `No zonal values for ${m} / ${k}.`;
 }
+
+// ---------------------------------------------------------------------------
+// Zoom and pan
+// ---------------------------------------------------------------------------
+let DRAG = null;
+
+function zoomAt(factor, clientX, clientY) {
+  const r = svg.getBoundingClientRect();
+  const fx = (clientX - r.left) / r.width, fy = (clientY - r.top) / r.height;
+  const wx = VIEW.x + VIEW.w * fx, wy = VIEW.y + VIEW.h * fy;
+  let w = VIEW.w * factor, h = VIEW.h * factor;
+  const maxW = WORLD.w * 2.2, minW = WORLD.w / 400;
+  if (w > maxW) { h *= maxW / w; w = maxW; }
+  if (w < minW) { h *= minW / w; w = minW; }
+  VIEW = { x: wx - w * fx, y: wy - h * fy, w, h };
+  applyView();
+  applyStrokeWidths();
+}
+
+svg.addEventListener("wheel", e => {
+  e.preventDefault();
+  zoomAt(Math.exp(e.deltaY * 0.0016), e.clientX, e.clientY);
+}, { passive: false });
+
+// Deliberately NOT using setPointerCapture: capturing on the <svg> retargets every
+// subsequent pointer event — and the click it generates — away from the <path> under the
+// cursor, so per-zone click handlers never fire. Drag state lives on window instead.
+let SUPPRESS_CLICK = false;
+
+function onDragMove(e) {
+  if (!DRAG) return;
+  const r = svg.getBoundingClientRect();
+  const dxPx = e.clientX - DRAG.x, dyPx = e.clientY - DRAG.y;
+  if (Math.hypot(dxPx, dyPx) > 3) { DRAG.moved = true; SUPPRESS_CLICK = true; }
+  VIEW.x = DRAG.vx - dxPx * (VIEW.w / r.width);
+  VIEW.y = DRAG.vy - dyPx * (VIEW.h / r.height);
+  svg.setAttribute("viewBox", `${VIEW.x} ${VIEW.y} ${VIEW.w} ${VIEW.h}`);
+  tip.style.opacity = 0;
+}
+
+function onDragEnd() {
+  if (!DRAG) return;
+  const moved = DRAG.moved;
+  DRAG = null;
+  svg.classList.remove("dragging");
+  removeEventListener("pointermove", onDragMove);
+  removeEventListener("pointerup", onDragEnd);
+  removeEventListener("pointercancel", onDragEnd);
+  if (moved) drawLabels();
+}
+
+svg.addEventListener("pointerdown", e => {
+  if (e.button !== 0) return;
+  SUPPRESS_CLICK = false;
+  DRAG = { x: e.clientX, y: e.clientY, vx: VIEW.x, vy: VIEW.y, moved: false };
+  svg.classList.add("dragging");
+  addEventListener("pointermove", onDragMove);
+  addEventListener("pointerup", onDragEnd);
+  addEventListener("pointercancel", onDragEnd);
+});
+
+document.getElementById("zin").addEventListener("click", () => {
+  const r = svg.getBoundingClientRect();
+  zoomAt(0.65, r.left + r.width / 2, r.top + r.height / 2);
+});
+document.getElementById("zout").addEventListener("click", () => {
+  const r = svg.getBoundingClientRect();
+  zoomAt(1.55, r.left + r.width / 2, r.top + r.height / 2);
+});
+
+const VIEWS = {};
+document.getElementById("zfit").addEventListener("click", () => { fitTo(VIEWS.pjm); applyStrokeWidths(); });
+document.querySelectorAll("[data-jump]").forEach(b =>
+  b.addEventListener("click", () => { fitTo(VIEWS[b.dataset.jump]); applyStrokeWidths(); }));
+
+let rAF = null;
+addEventListener("resize", () => {
+  cancelAnimationFrame(rAF);
+  rAF = requestAnimationFrame(() => { applyView(); applyStrokeWidths(); });
+});
+
+// ---------------------------------------------------------------------------
 
 async function selectZone(code) {
   SELECTED = code;
   svg.querySelectorAll(".zone").forEach(el =>
     el.setAttribute("aria-selected", el.dataset.zone === code));
+  applyStrokeWidths();
 
   const m = document.getElementById("month").value;
   const k = document.getElementById("klass").value;
-  const d = await (await fetch(`/api/zone/${code}?month=${m}&class_type=${k}`)).json();
+  let d;
+  try { d = await getJSON(`/api/zone/${code}?month=${encodeURIComponent(m)}&class_type=${encodeURIComponent(k)}`); }
+  catch (e) { showBanner(`Could not load ${code}: ${e.message}`); return; }
 
   document.getElementById("ztitle").textContent = d.label;
   document.getElementById("zsub").textContent = `${k} congestion, ${m}`;
@@ -408,19 +620,19 @@ async function selectZone(code) {
       <div class="stat"><div class="k">Upgrade adjustment</div>
         <div class="v ${cls(z.mean_gap)}">${fmt(z.mean_gap)}<span class="u"> $/MWh</span></div></div>
       <div class="stat"><div class="k">Within-zone spread</div>
-        <div class="v">${fmt(z.sd_gap, 2).replace("+", "")}<span class="u"> sd</span></div></div>
+        <div class="v">${(z.sd_gap ?? 0).toFixed(2)}<span class="u"> sd</span></div></div>
       <div class="stat"><div class="k">Baseline congestion</div>
         <div class="v">${fmt(z.mean_realized)}<span class="u"> $/MWh</span></div></div>
       <div class="stat"><div class="k">Upgrade-adjusted</div>
         <div class="v">${fmt(z.mean_sim)}<span class="u"> $/MWh</span></div></div>
     </div>
     <p class="caption" style="padding:0">${z.n_nodes || 0} nodes priced;
-      ${z.n_nodes_gap_over_1 || 0} diverge by more than $1/MWh.
-      p10 ${fmt(z.p10_gap)} &middot; median ${fmt(z.median_gap)} &middot; p90 ${fmt(z.p90_gap)}.</p>`;
+      ${z.n_nodes_gap_over_1 || 0} move by more than $1/MWh.
+      p10 ${fmt(z.p10_gap)} · median ${fmt(z.median_gap)} · p90 ${fmt(z.p90_gap)}.</p>`;
 
   const nodes = d.nodes.length ? `
     <h3>Nodes furthest from the zonal average</h3>
-    <table><thead><tr><th>Node</th><th>kV</th><th>Base</th><th>Adj.</th><th>&Delta;</th></tr></thead>
+    <table><thead><tr><th>Node</th><th>kV</th><th>Base</th><th>Adj.</th><th>Δ</th></tr></thead>
     <tbody>${d.nodes.map(n => `<tr>
       <td class="name" title="${n.pnode_name}">${n.pnode_name}</td>
       <td>${(n.voltage_level || "").replace(" KV", "")}</td>
@@ -429,9 +641,9 @@ async function selectZone(code) {
 
   const paths = d.paths.length ? `
     <h3>Traded FTR paths sinking here</h3>
-    <table><thead><tr><th>Source &rarr; sink</th><th>MW</th><th>Base</th><th>Adj.</th><th>&Delta;</th></tr></thead>
+    <table><thead><tr><th>Source → sink</th><th>MW</th><th>Base</th><th>Adj.</th><th>Δ</th></tr></thead>
     <tbody>${d.paths.map(p => `<tr>
-      <td class="name" title="${p.source_name} &rarr; ${p.sink_name}">${p.source_name} &rarr; ${p.sink_name}</td>
+      <td class="name" title="${p.source_name} → ${p.sink_name}">${p.source_name} → ${p.sink_name}</td>
       <td>${Math.round(p.total_mw)}</td>
       <td>${fmt(p.realized_spread)}</td><td>${fmt(p.sim_spread)}</td>
       <td class="${cls(p.spread_gap)}">${fmt(p.spread_gap)}</td></tr>`).join("")}</tbody></table>`
@@ -442,23 +654,18 @@ async function selectZone(code) {
   document.getElementById("panel").innerHTML = stats + nodes + paths;
 }
 
-// A failed fetch must never take the page down. Starlette renders unhandled server
-// exceptions as plain text, so res.json() rejects rather than returning a status --
-// an uncaught rejection there leaves a blank map with no clue why.
 async function getJSON(url) {
   const res = await fetch(url);
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${res.statusText} on ${url}${body ? " — " + body.slice(0, 300) : ""}`);
+    throw new Error(`${res.status} ${res.statusText}${body ? " — " + body.slice(0, 200) : ""}`);
   }
   return res.json();
 }
 
 function showBanner(msg, kind = "error") {
   const el = document.getElementById("banner");
-  el.hidden = false;
-  el.dataset.kind = kind;
-  el.textContent = msg;
+  el.hidden = false; el.dataset.kind = kind; el.textContent = msg;
 }
 
 async function load() {
@@ -472,32 +679,26 @@ async function load() {
       `${meta.counts.node_months.toLocaleString()} node-months of congestion · ` +
       `${meta.counts.bids.toLocaleString()} FTR auction bids · ` +
       `${meta.counts.active_nodes.toLocaleString()} active pricing nodes`;
-  } catch (e) {
-    showBanner(`Could not reach the API: ${e.message}`);
-    return;
-  }
+  } catch (e) { showBanner(`Could not reach the API: ${e.message}`); return; }
 
   try {
     GEO = await getJSON("/api/geo");
     if (!GEO.zones.features.length) {
-      showBanner("No zone geometry loaded. Run etl/load_geo.py, then sql/02_zone_crosswalk.sql.");
-      return;
+      showBanner("No zone geometry. Run etl/load_geo.py, then sql/02_zone_crosswalk.sql."); return;
     }
-    computeFit([...GEO.states.features, ...GEO.zones.features]);
-  } catch (e) {
-    showBanner(`Could not load map geometry: ${e.message}`);
-    return;
-  }
+    WORLD = boundsOf(GEO.states.features);
+    VIEWS.us = WORLD;
+    VIEWS.pjm = GEO.pjm_bounds
+      ? boundsFromLonLat(...GEO.pjm_bounds)
+      : boundsOf(GEO.zones.features);
+    VIEWS.midatl = boundsFromLonLat(-81.5, 37.0, -73.9, 41.6);
+    fitTo(VIEWS.pjm);
+  } catch (e) { showBanner(`Could not load map geometry: ${e.message}`); return; }
 
-  // Geometry is present but the facts may not be — draw the map either way, so an
-  // empty warehouse looks like an empty map rather than a broken page.
   if (!meta.months.length) {
-    showBanner(
-      "Map geometry is loaded but there is no congestion data yet. Run `python etl/ingest.py`, " +
-      "then sql/03_transform.sql and sql/04_analysis_views.sql.", "info");
-    GAP = { zones: [] };
-    draw();
-    return;
+    showBanner("Geometry is loaded but there is no congestion data yet. Run `python etl/ingest.py`, " +
+               "then sql/03_transform.sql and sql/04_analysis_views.sql.", "info");
+    GAP = { zones: [] }; draw(); return;
   }
   await refresh();
 }

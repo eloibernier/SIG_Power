@@ -35,25 +35,50 @@ TIGERWEB_STATES = (
 # rather than a name list means the crosswalk can be checked against what actually exists.
 PJM_STATES = ["PA", "NJ", "MD", "DE", "DC", "VA", "WV", "OH", "IN", "IL", "KY", "MI", "NC", "TN"]
 
+# State outlines cover the whole lower 48, not just the PJM footprint: the map needs national
+# context so you can see how small a slice of the country PJM actually is. Alaska, Hawaii and
+# the territories are dropped -- an Albers conic centred on PJM cannot show them sensibly.
+NON_CONUS = ["AK", "HI", "PR", "VI", "GU", "AS", "MP", "UM"]
+
 PAGE = 500  # well under the layer's maxRecordCount of 2000; geometry payloads are large
 
 
-def _fetch_geojson(url: str, where: str, out_fields: str, offset: int) -> dict:
-    resp = requests.get(
-        url,
-        params={
-            "where": where,
-            "outFields": out_fields,
-            "returnGeometry": "true",
-            "outSR": "4326",
-            "f": "geojson",
-            "resultOffset": offset,
-            "resultRecordCount": PAGE,
-        },
-        timeout=180,
-    )
+def _fetch_geojson(
+    url: str,
+    where: str,
+    out_fields: str,
+    offset: int,
+    page: int = PAGE,
+    simplify: float | None = None,
+) -> dict:
+    """One page of GeoJSON from an ArcGIS REST layer.
+
+    `simplify` maps to maxAllowableOffset, which generalises geometry *server-side* in
+    degrees. State outlines at full census resolution are far more detail than a map this
+    size can show, and asking for all fifty at once without it overruns the service and
+    comes back as something that is not JSON.
+    """
+    params = {
+        "where": where,
+        "outFields": out_fields,
+        "returnGeometry": "true",
+        "outSR": "4326",
+        "f": "geojson",
+        "resultOffset": offset,
+        "resultRecordCount": page,
+    }
+    if simplify is not None:
+        params["maxAllowableOffset"] = simplify
+
+    resp = requests.get(url, params=params, timeout=180)
     resp.raise_for_status()
-    return resp.json()
+    try:
+        return resp.json()
+    except ValueError:
+        raise RuntimeError(
+            f"{url} returned non-JSON ({len(resp.content)} bytes). "
+            f"Try a smaller page or a coarser simplify. First 200 chars: {resp.text[:200]!r}"
+        )
 
 
 def _as_multipolygon(geom: dict | None) -> str | None:
@@ -115,26 +140,37 @@ def load_utilities(conn) -> int:
 
 
 def load_states(conn) -> int:
-    states = ", ".join(f"'{s}'" for s in PJM_STATES)
-    where = f"STUSAB IN ({states})"
+    """All lower-48 states, flagged for whether PJM operates in them."""
+    excluded = ", ".join(f"'{s}'" for s in NON_CONUS)
+    where = f"STUSAB NOT IN ({excluded})"
 
     with conn.cursor() as cur:
         cur.execute("TRUNCATE dim_state")
 
-    payload = _fetch_geojson(TIGERWEB_STATES, where, "STUSAB,NAME", 0)
-    rows = []
-    for f in payload.get("features") or []:
-        gj = _as_multipolygon(f.get("geometry"))
-        if gj is None:
-            continue
-        p = f.get("properties", {})
-        rows.append((p.get("STUSAB"), p.get("NAME"), gj))
+    rows, offset = [], 0
+    while True:
+        payload = _fetch_geojson(
+            TIGERWEB_STATES, where, "STUSAB,NAME", offset, page=10, simplify=0.02
+        )
+        feats = payload.get("features") or []
+        if not feats:
+            break
+        for f in feats:
+            gj = _as_multipolygon(f.get("geometry"))
+            if gj is None:
+                continue
+            p = f.get("properties", {})
+            abbr = p.get("STUSAB")
+            rows.append((abbr, p.get("NAME"), abbr in PJM_STATES, gj))
+        if len(feats) < 10:
+            break
+        offset += len(feats)
 
     with conn.cursor() as cur:
         cur.executemany(
             """
-            INSERT INTO dim_state (state_abbr, state_name, geom)
-            VALUES (%s, %s, ST_Multi(ST_MakeValid(ST_GeomFromGeoJSON(%s))))
+            INSERT INTO dim_state (state_abbr, state_name, in_pjm, geom)
+            VALUES (%s, %s, %s, ST_Multi(ST_MakeValid(ST_GeomFromGeoJSON(%s))))
             ON CONFLICT (state_abbr) DO NOTHING
             """,
             rows,

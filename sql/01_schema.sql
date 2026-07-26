@@ -115,6 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_dim_zone_geom ON dim_zone USING GIST (geom);
 CREATE TABLE IF NOT EXISTS dim_state (
   state_abbr  text PRIMARY KEY,
   state_name  text,
+  in_pjm      boolean DEFAULT false,   -- does PJM operate anywhere in this state
   geom        geometry(MultiPolygon, 4326)
 );
 CREATE INDEX IF NOT EXISTS idx_dim_state_geom ON dim_state USING GIST (geom);

@@ -115,24 +115,41 @@ def geo() -> JSONResponse:
 
         cur.execute(
             """
-            SELECT state_abbr,
-                   ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom, 0.02))::json AS geometry
+            SELECT state_abbr, state_name, in_pjm,
+                   ST_AsGeoJSON(ST_SimplifyPreserveTopology(geom, 0.03))::json AS geometry
             FROM dim_state ORDER BY state_abbr
             """
         )
         states = [
             {
                 "type": "Feature",
-                "properties": {"state": r["state_abbr"]},
+                "properties": {
+                    "state": r["state_abbr"],
+                    "name": r["state_name"],
+                    "in_pjm": r["in_pjm"],
+                },
                 "geometry": r["geometry"],
             }
             for r in cur.fetchall()
         ]
 
+        # Bounds of the PJM footprint, so the map can open zoomed to it and still let you
+        # pull back to the whole country for context.
+        cur.execute(
+            """
+            SELECT ST_XMin(e) AS w, ST_YMin(e) AS s, ST_XMax(e) AS e2, ST_YMax(e) AS n
+            FROM (SELECT ST_Extent(geom)::geometry AS e FROM dim_zone WHERE geom IS NOT NULL) q
+            """
+        )
+        b = cur.fetchone()
+
     return JSONResponse(
         {
             "zones": {"type": "FeatureCollection", "features": zones},
             "states": {"type": "FeatureCollection", "features": states},
+            "pjm_bounds": (
+                [b["w"], b["s"], b["e2"], b["n"]] if b and b["w"] is not None else None
+            ),
         }
     )
 
