@@ -6,7 +6,8 @@
 <title>PJM FTR Topology Divergence</title>
 <style>
   /* Diverging blue<->red with a neutral gray midpoint: the value has a true zero
-     (simulation agrees with reality) and a meaningful sign on either side. */
+     (the upgrade case leaves this node's congestion unchanged) and a meaningful
+     sign on either side. */
   :root {
     color-scheme: light;
     --surface-1:      #fcfcfb;
@@ -143,13 +144,17 @@
 <body>
 
 <header>
-  <h1>Where PJM's own model disagrees with what the grid actually did</h1>
+  <h1>What planned transmission upgrades do to PJM congestion, node by node</h1>
   <p class="sub">
-    For every pricing node and month, PJM's FTR credit feed publishes congestion two ways:
-    <strong>realized</strong>, and a <strong>PROMOD simulation</strong> adjusted for planned
-    transmission upgrades. This maps the difference &mdash; simulated minus realized, in
-    $/MWh of congestion. Positive means PJM's modelled grid is <em>more</em> congested than
-    the one that actually ran.
+    For every pricing node and month, PJM's FTR credit feed publishes congestion under two
+    network topologies: a <strong>baseline</strong>, and a <strong>PROMOD case adjusted for
+    planned transmission upgrades</strong>. This maps the difference &mdash; upgrade-adjusted
+    minus baseline, in $/MWh of congestion. Positive means PJM's upgraded grid is
+    <em>more</em> congested at that node, not less.
+    <br>
+    <span style="color:var(--muted)">Both series are modelled. Neither is realized outturn
+    &mdash; see <code>etl/validate.py</code>, which reconciles them against raw hourly
+    day-ahead LMPs and shows they do not match.</span>
   </p>
   <p class="counts" id="counts">loading&hellip;</p>
 </header>
@@ -176,7 +181,7 @@
 <main>
   <div>
     <div id="mapwrap"><svg id="map" viewBox="0 0 860 560" role="img"
-      aria-label="Choropleth of PJM transmission zones by simulated minus realized congestion"></svg></div>
+      aria-label="Choropleth of PJM transmission zones by upgrade-adjusted minus baseline congestion"></svg></div>
     <div class="legendwrap">
       <div class="legend" id="legend"></div>
       <p class="caption" id="caption"></p>
@@ -305,7 +310,7 @@ function renderLegend() {
     `<span class="lab">&minus;${d.toFixed(1)}</span>` +
     steps.map(([c]) => `<i style="background:${css(c)}"></i>`).join("") +
     `<span class="lab">+${d.toFixed(1)}</span>` +
-    `<span class="lab" style="padding-left:12px">$/MWh, simulated &minus; realized</span>`;
+    `<span class="lab" style="padding-left:12px">$/MWh, upgrade-adjusted &minus; baseline</span>`;
 }
 
 const fmt = (v, n = 2) => (v === null || v === undefined || Number.isNaN(v))
@@ -354,8 +359,8 @@ function draw() {
       const z = byZone.get(el.dataset.zone);
       const lbl = GEO.zones.features.find(f => f.properties.zone === el.dataset.zone)?.properties.label;
       tip.innerHTML = z
-        ? `<b>${lbl}</b><span class="r">simulated &minus; realized</span> <b style="display:inline">${fmt(z.mean_gap)} $/MWh</b>
-           <div class="r">realized ${fmt(z.mean_realized)} &middot; simulated ${fmt(z.mean_sim)}</div>
+        ? `<b>${lbl}</b><span class="r">upgrade adjustment</span> <b style="display:inline">${fmt(z.mean_gap)} $/MWh</b>
+           <div class="r">baseline ${fmt(z.mean_realized)} &middot; upgraded ${fmt(z.mean_sim)}</div>
            <div class="r">${z.n_nodes} nodes &middot; ${z.n_nodes_gap_over_1} beyond &plusmn;$1</div>`
         : `<b>${lbl}</b><span class="r">no data this month</span>`;
       tip.style.opacity = 1;
@@ -371,7 +376,7 @@ function draw() {
   const top = [...(GAP?.zones || [])].sort((a, b) => Math.abs(b.mean_gap) - Math.abs(a.mean_gap))[0];
   document.getElementById("caption").innerHTML = top
     ? `${k} congestion, ${m}. Widest divergence: <strong>${top.zone}</strong> at ${fmt(top.mean_gap)} $/MWh
-       (realized ${fmt(top.mean_realized)}, simulated ${fmt(top.mean_sim)}). Zone geometry is built from
+       (baseline ${fmt(top.mean_realized)}, upgraded ${fmt(top.mean_sim)}). Zone geometry is built from
        utility service territories &mdash; PJM does not publish node coordinates.`
     : "";
 }
@@ -391,13 +396,13 @@ async function selectZone(code) {
   const z = (GAP.zones || []).find(x => x.zone === code) || {};
   const stats = `
     <div class="stats">
-      <div class="stat"><div class="k">Simulated &minus; realized</div>
+      <div class="stat"><div class="k">Upgrade adjustment</div>
         <div class="v ${cls(z.mean_gap)}">${fmt(z.mean_gap)}<span class="u"> $/MWh</span></div></div>
       <div class="stat"><div class="k">Within-zone spread</div>
         <div class="v">${fmt(z.sd_gap, 2).replace("+", "")}<span class="u"> sd</span></div></div>
-      <div class="stat"><div class="k">Realized congestion</div>
+      <div class="stat"><div class="k">Baseline congestion</div>
         <div class="v">${fmt(z.mean_realized)}<span class="u"> $/MWh</span></div></div>
-      <div class="stat"><div class="k">Simulated congestion</div>
+      <div class="stat"><div class="k">Upgrade-adjusted</div>
         <div class="v">${fmt(z.mean_sim)}<span class="u"> $/MWh</span></div></div>
     </div>
     <p class="caption" style="padding:0">${z.n_nodes || 0} nodes priced;
@@ -406,7 +411,7 @@ async function selectZone(code) {
 
   const nodes = d.nodes.length ? `
     <h3>Nodes furthest from the zonal average</h3>
-    <table><thead><tr><th>Node</th><th>kV</th><th>Real.</th><th>Sim.</th><th>Gap</th></tr></thead>
+    <table><thead><tr><th>Node</th><th>kV</th><th>Base</th><th>Adj.</th><th>&Delta;</th></tr></thead>
     <tbody>${d.nodes.map(n => `<tr>
       <td class="name" title="${n.pnode_name}">${n.pnode_name}</td>
       <td>${(n.voltage_level || "").replace(" KV", "")}</td>
@@ -415,7 +420,7 @@ async function selectZone(code) {
 
   const paths = d.paths.length ? `
     <h3>Traded FTR paths sinking here</h3>
-    <table><thead><tr><th>Source &rarr; sink</th><th>MW</th><th>Real.</th><th>Sim.</th><th>Gap</th></tr></thead>
+    <table><thead><tr><th>Source &rarr; sink</th><th>MW</th><th>Base</th><th>Adj.</th><th>&Delta;</th></tr></thead>
     <tbody>${d.paths.map(p => `<tr>
       <td class="name" title="${p.source_name} &rarr; ${p.sink_name}">${p.source_name} &rarr; ${p.sink_name}</td>
       <td>${Math.round(p.total_mw)}</td>

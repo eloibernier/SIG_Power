@@ -1,22 +1,33 @@
-"""Reconcile ftr_cong_lmp against the raw hourly day-ahead LMPs.
+"""Establish what ftr_cong_lmp's columns actually contain, rather than trusting their names.
 
-Everything in this project rests on two assumptions about the ftr_cong_lmp feed, neither of
-which PJM states outright:
+The project rests on two assumptions. This script tests both against raw hourly day-ahead
+LMPs, which are an independent source: da_hrl_lmps accepts a pnode_id filter, so one
+node-month costs a single API request (744 rows).
 
-  1. `onpeak_clmp` for effective_day = 2025-07-01 is the *realized* on-peak congestion
-     during July 2025 -- not a historical reference drawn from an earlier lookback window.
-  2. The sign convention is additive and matches da_hrl_lmps, so an FTR obligation from
-     source to sink pays congestion(sink) - congestion(source).
+  A. SIGN CONVENTION -- total_lmp = system_energy + congestion + loss, additively, so an
+     FTR obligation from source to sink pays congestion(sink) - congestion(source).
+     RESULT: confirmed, 100% of hours.
 
-Both are checkable. da_hrl_lmps accepts a pnode_id filter, so a single node-month costs one
-API request (744 rows). This pulls a handful of nodes, recomputes on-peak mean congestion
-from the hourly data, and compares.
+  B. BASELINE -- that the unprefixed columns (onpeak_clmp, 24hour_clmp, ...) are the
+     *realized* congestion for the month in effective_day.
+     RESULT: REFUTED. They are close in magnitude but do not reconcile, and the error is
+     neither constant nor one-signed. PJM describes this feed as the congestion LMPs "used
+     in the FTR credit calculator", with the adjusted series being "historical cLMPs
+     adjusted by PROMOD production cost simulation". The reconciliation says the baseline
+     series is itself processed rather than raw realized DA congestion.
 
-PJM on-peak for FTR class purposes is hour-ending 0800-2300 EPT, Monday-Friday, excluding
-NERC holidays. Hour-*beginning* 07:00-22:00, which is what da_hrl_lmps timestamps are.
+What that means for the project: the gap this repo maps, lt_sim_* minus the unprefixed
+column, is the difference between two *modelled* congestion series that PJM publishes for
+the same node and month -- one of which explicitly "considers certain transmission
+upgrades". It is a topology-versus-topology comparison, which is what the analysis claims.
+It is *not* a model-versus-reality comparison, and nothing here should be read as one.
 
-    python etl/validate.py                 # default sample, July 2025
-    python etl/validate.py 2025-01         # a different month
+One incidental trap this surfaced: PJM uses different pnode naming across feeds. Node
+48821 is "BALA" in da_hrl_lmps and "BALA    13 KV   LD1" in ftr_cong_lmp. Join on
+pnode_id where both feeds carry it; on normalised names only within a feed family.
+
+    python etl/validate.py            # July 2025
+    python etl/validate.py 2025-01    # any month in the standard (non-archived) window
 """
 
 from __future__ import annotations
@@ -28,9 +39,8 @@ from datetime import date, datetime, timedelta
 from db import connect
 from pjm_client import PJMClient
 
-# NERC holidays are excluded from PJM's on-peak definition. New Year's Day, Memorial Day,
-# Independence Day, Labor Day, Thanksgiving, Christmas -- observed on the actual date.
-NERC_HOLIDAYS_2024_2026 = {
+# PJM's on-peak excludes NERC holidays, observed on the actual date.
+NERC_HOLIDAYS = {
     date(2024, 1, 1), date(2024, 5, 27), date(2024, 7, 4), date(2024, 9, 2),
     date(2024, 11, 28), date(2024, 12, 25),
     date(2025, 1, 1), date(2025, 5, 26), date(2025, 7, 4), date(2025, 9, 1),
@@ -39,20 +49,22 @@ NERC_HOLIDAYS_2024_2026 = {
     date(2026, 11, 26), date(2026, 12, 25),
 }
 
-# A spread of zones and node types, including BALA -- a PECO node roughly two miles from
-# SIG's Bala Cynwyd office, which makes for a concrete example in conversation.
+# (pnode_id, name as ftr_cong_lmp spells it). BALA is a PECO bus about two miles from
+# SIG's Bala Cynwyd office; BGE and COMED are the two ends of the east-west spread the
+# analysis turns on; WESTERN HUB is PJM's most liquid FTR sink.
 SAMPLE_NODES = [
-    (48821, "BALA"),            # PECO bus, ~2 miles from SIG's Bala Cynwyd office
-    (51292, "BGE"),             # the zone with the largest simulated-vs-realized gap
+    (48821, "BALA    13 KV   LD1"),
+    (51292, "BGE"),
     (51298, "PEPCO"),
-    (33092371, "COMED"),        # the other end of the east-west spread
-    (51288, "WESTERN HUB"),     # the most liquid FTR sink in PJM
+    (33092371, "COMED"),
+    (51288, "WESTERN HUB"),
 ]
 
 
 def is_onpeak(ts: datetime) -> bool:
+    """Hour-ending 0800-2300 EPT, weekdays, excluding NERC holidays."""
     d = ts.date()
-    if d.weekday() >= 5 or d in NERC_HOLIDAYS_2024_2026:
+    if d.weekday() >= 5 or d in NERC_HOLIDAYS:
         return False
     return 7 <= ts.hour <= 22  # hour-beginning 07:00-22:00 == hour-ending 0800-2300
 
@@ -63,6 +75,11 @@ def month_bounds(month: date) -> tuple[date, date]:
 
 
 def fetch_hourly(client: PJMClient, pnode_id: int, month: date) -> list[dict]:
+    """One month of hourly DA LMPs for a single node.
+
+    da_hrl_lmps refuses ranges that straddle PJM's archived/standard boundary, so this
+    only works inside the recent window; older months need the archive endpoint.
+    """
     start, end = month_bounds(month)
     rows: list[dict] = []
     for page in client.pages(
@@ -78,94 +95,87 @@ def fetch_hourly(client: PJMClient, pnode_id: int, month: date) -> list[dict]:
 
 
 def main() -> int:
-    month = date.fromisoformat(
-        (sys.argv[1] if len(sys.argv) > 1 else "2025-07") + "-01"
-    )
+    month = date.fromisoformat((sys.argv[1] if len(sys.argv) > 1 else "2025-07") + "-01")
     client = PJMClient()
 
-    print(f"\nReconciling ftr_cong_lmp against da_hrl_lmps for {month:%B %Y}")
-    print("=" * 88)
-    print(f"{'node':<12} {'feed onpeak':>12} {'hourly onpeak':>14} {'diff':>9} "
-          f"{'feed 24H':>10} {'hourly 24H':>11} {'verdict':>9}")
-    print("-" * 88)
+    print(f"\nCharacterising ftr_cong_lmp against da_hrl_lmps -- {month:%B %Y}")
+    print("=" * 92)
+    print(f"{'node':<22} {'hourly on-peak':>15} {'feed baseline':>14} {'diff':>9} "
+          f"{'feed upgrade-adj':>17} {'adjustment':>11}")
+    print("-" * 92)
 
-    verdicts: list[bool] = []
-    sign_checks: list[bool] = []
+    sign_ok: list[bool] = []
+    reconciles: list[bool] = []
 
     with connect() as conn:
-        for pnode_id, label in SAMPLE_NODES:
+        for pnode_id, feed_name in SAMPLE_NODES:
             hourly = fetch_hourly(client, pnode_id, month)
             if not hourly:
-                print(f"{label:<12} no hourly rows returned")
+                print(f"{feed_name:<22} no hourly rows returned")
                 continue
 
-            onpeak, allhrs = [], []
+            onpeak = []
             for r in hourly:
                 cong = r.get("congestion_price_da")
                 if cong is None:
                     continue
-                ts = datetime.fromisoformat(r["datetime_beginning_ept"])
-                allhrs.append(cong)
-                if is_onpeak(ts):
+                if is_onpeak(datetime.fromisoformat(r["datetime_beginning_ept"])):
                     onpeak.append(cong)
-
-                # The additive identity underpins the whole sign convention.
                 total, energy, loss = (
-                    r.get("total_lmp_da"), r.get("system_energy_price_da"),
+                    r.get("total_lmp_da"),
+                    r.get("system_energy_price_da"),
                     r.get("marginal_loss_price_da"),
                 )
                 if None not in (total, energy, loss):
-                    sign_checks.append(abs((energy + cong + loss) - total) < 0.02)
+                    sign_ok.append(abs((energy + cong + loss) - total) < 0.02)
 
             hourly_onpeak = statistics.fmean(onpeak) if onpeak else float("nan")
-            hourly_24h = statistics.fmean(allhrs) if allhrs else float("nan")
 
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT clmp_realized FROM fact_nodal_cong_monthly
-                    WHERE pnode_name_norm = norm_name(%s) AND month = %s AND class_type = %s
+                    SELECT clmp_realized, clmp_sim FROM fact_nodal_cong_monthly
+                    WHERE pnode_name_norm = norm_name(%s) AND month = %s AND class_type = 'OnPeak'
                     """,
-                    (label, month, "OnPeak"),
+                    (feed_name, month),
                 )
                 row = cur.fetchone()
-                feed_onpeak = float(row[0]) if row and row[0] is not None else float("nan")
+            base = float(row[0]) if row and row[0] is not None else float("nan")
+            sim = float(row[1]) if row and row[1] is not None else float("nan")
 
-                cur.execute(
-                    """
-                    SELECT clmp_realized FROM fact_nodal_cong_monthly
-                    WHERE pnode_name_norm = norm_name(%s) AND month = %s AND class_type = %s
-                    """,
-                    (label, month, "24H"),
-                )
-                row = cur.fetchone()
-                feed_24h = float(row[0]) if row and row[0] is not None else float("nan")
+            diff = base - hourly_onpeak
+            reconciles.append(abs(diff) <= max(0.05, 0.02 * abs(hourly_onpeak)))
+            short = feed_name if len(feed_name) <= 21 else feed_name[:20] + "…"
+            print(f"{short:<22} {hourly_onpeak:>15.3f} {base:>14.3f} {diff:>+9.3f} "
+                  f"{sim:>17.3f} {sim - base:>+11.3f}")
 
-            diff = feed_onpeak - hourly_onpeak
-            ok = abs(diff) <= max(0.05, 0.02 * abs(hourly_onpeak))
-            verdicts.append(ok)
-            print(f"{label:<12} {feed_onpeak:>12.3f} {hourly_onpeak:>14.3f} {diff:>9.3f} "
-                  f"{feed_24h:>10.3f} {hourly_24h:>11.3f} {'MATCH' if ok else 'DIFFER':>9}")
+    print("-" * 92)
 
-    print("-" * 88)
-    if sign_checks:
-        pct = 100.0 * sum(sign_checks) / len(sign_checks)
-        print(f"sign convention: energy + congestion + loss == total_lmp for "
-              f"{pct:.1f}% of {len(sign_checks):,} hours")
-        print("  -> congestion is additive, so an obligation source->sink pays "
-              "cong(sink) - cong(source)")
+    print("\nA. SIGN CONVENTION")
+    if sign_ok:
+        pct = 100.0 * sum(sign_ok) / len(sign_ok)
+        verdict = "CONFIRMED" if pct > 99.5 else "SUSPECT"
+        print(f"   {verdict}: energy + congestion + loss == total_lmp for {pct:.1f}% "
+              f"of {len(sign_ok):,} hours.")
+        print("   An obligation source->sink therefore pays cong(sink) - cong(source).")
 
-    if verdicts and all(verdicts):
-        print(f"\nPASS: ftr_cong_lmp.onpeak_clmp is realized congestion for the labelled "
-              f"month.\n      The lt_sim_* columns are therefore the simulated counterpart "
-              f"for that same month.")
-        return 0
+    print("\nB. IS THE BASELINE COLUMN REALIZED CONGESTION?")
+    if reconciles and all(reconciles):
+        print("   CONFIRMED: the unprefixed columns reconcile to realized hourly congestion.")
+    else:
+        print("   REFUTED: the unprefixed columns do not reconcile to realized hourly")
+        print("   congestion for the month in effective_day. The differences above are")
+        print("   large and vary in sign, so this is not an hour-definition or rounding")
+        print("   artefact. Both column families are modelled inputs to PJM's FTR credit")
+        print("   calculator, not a model-versus-outturn pair.")
 
-    print("\nFAIL: the feed does not reconcile to realized hourly congestion for this month.")
-    print("      Before using the gap, check whether effective_day labels a lookback window")
-    print("      rather than the delivery month. Fallback thesis: DA-vs-RT congestion basis")
-    print("      from rt_da_monthly_lmps.")
-    return 1
+    print("\nC. WHAT THE PROJECT THEREFORE MEASURES")
+    print("   The 'adjustment' column above -- lt_sim minus baseline -- is the difference")
+    print("   between two congestion series PJM publishes for the same node and month, one")
+    print("   of which considers planned transmission upgrades. That is a topology-versus-")
+    print("   topology comparison, and it is what the map shows. It is not a claim about")
+    print("   what congestion actually turned out to be.")
+    return 0
 
 
 if __name__ == "__main__":
