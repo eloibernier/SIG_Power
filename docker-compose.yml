@@ -1,0 +1,43 @@
+services:
+  db:
+    # imresamu/* is the multi-arch build of the same PostGIS image. The official
+    # postgis/postgis tags are amd64-only, which means QEMU emulation on Apple Silicon and
+    # a large penalty on bulk COPY. Same Postgres 16 / PostGIS 3.4.
+    image: imresamu/postgis:16-3.4
+    container_name: ftr_db
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-ftr}
+      POSTGRES_USER: ${PGUSER:-ftr}
+      POSTGRES_PASSWORD: ${PGPASSWORD:-ftr_local_dev}
+    ports:
+      # 5433 on the host so this never collides with a local Postgres on 5432
+      - "5433:5432"
+    volumes:
+      - ftr_pgdata:/var/lib/postgresql/data
+      - ./sql:/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-ftr} -d ${PGDATABASE:-ftr}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    shm_size: 1gb
+
+  api:
+    build: .
+    container_name: ftr_api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${PGDATABASE:-ftr}
+      PGUSER: ${PGUSER:-ftr}
+      PGPASSWORD: ${PGPASSWORD:-ftr_local_dev}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/srv/app:ro
+
+volumes:
+  ftr_pgdata:

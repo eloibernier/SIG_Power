@@ -1,0 +1,17 @@
+# Secrets — never commit
+.env
+
+# Raw PJM extracts are regenerable; keep them out of git
+data/
+*.csv
+*.json.gz
+*.zip
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# OS
+.DS_Store
