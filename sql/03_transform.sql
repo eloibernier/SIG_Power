@@ -71,7 +71,7 @@ SELECT b.market_name,
        b.quoted_price
 FROM stg_ftr_bid_mnt b
 CROSS JOIN LATERAL (
-  SELECT to_number(substring(b.market_name from '(\d{4})'), '9999')      AS auction_year,
+  SELECT substring(b.market_name from '(\d{4})')::int                    AS auction_year,
          to_char(to_date(split_part(b.market_name, ' ', 1), 'MON'), 'MM')::int AS auction_mon,
          to_char(to_date(b.period_type, 'MON'), 'MM')::int               AS period_mon
 ) AS parsed
