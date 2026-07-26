@@ -42,12 +42,19 @@ docker exec -i ftr_db psql -U ftr -d ftr -f /sql/03_transform.sql
 docker exec -i ftr_db psql -U ftr -d ftr -f /sql/04_analysis_views.sql
 
 python etl/validate.py        # characterises the feed against raw hourly LMPs
-docker compose up -d api      # http://localhost:8000
+docker compose up -d api      # http://localhost:8080
 ```
 
 `etl/ingest.py` records each completed `(feed, partition)` in `ingest_log` and skips it on
 re-run, so an interrupted pull resumes rather than restarting. Row counts are asserted
 against the API's own `totalRows`.
+
+Every SQL file is safe to re-run against a loaded warehouse — `01_schema.sql` creates only
+`IF NOT EXISTS`, and the transforms truncate and rebuild from staging. To rebuild from
+scratch, run `sql/00_reset.sql` first: it drops the tables **and** clears `ingest_log` in one
+transaction, because dropping staging without clearing the log leaves the bookkeeping
+claiming feeds are loaded when their tables are empty — and the next ingest would then skip
+everything and leave you with an empty warehouse.
 
 `PJM_KEY` is optional. Without it the ETL falls back to the anonymous subscription key that
 Data Miner 2's own web app publishes in its client config — the same access an
@@ -58,7 +65,7 @@ personal key from <https://apiportal.pjm.com/> gets you that budget to yourself.
 
 | Source | Role |
 |---|---|
-| `ftr_cong_lmp` | Nodal congestion LMP bucketed by FTR class type, realized **and** PROMOD-simulated |
+| `ftr_cong_lmp` | Nodal congestion LMP bucketed by FTR class type — **baseline** and **upgrade-adjusted** (`lt_sim_*`) side by side |
 | `ftr_bids_mnt` | Every bid into the monthly FTR auctions (164M rows total; 1.44M per auction) |
 | `pnode` | Node master — carries the transmission zone for each of ~23.7k nodes |
 | `da_hrl_lmps` | Hourly day-ahead LMPs, used only to validate the above |

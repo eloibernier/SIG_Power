@@ -2,7 +2,7 @@
 
 Interview: Wednesday 29 July 2026, 10:30 EST, Zoom.
 
-**Before the call:** `docker compose up -d` then open <http://localhost:8000> and click
+**Before the call:** `docker compose up -d` then open <http://localhost:8080> and click
 BGE once, so the page is already warm. Have `notes/screens/` open in a second window as the
 fallback. Turn wifi off once to prove to yourself the page still renders — it does, there
 are no external tiles and no CDN.

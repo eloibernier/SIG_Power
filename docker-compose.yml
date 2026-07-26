@@ -35,7 +35,10 @@ services:
       PGUSER: ${PGUSER:-ftr}
       PGPASSWORD: ${PGPASSWORD:-ftr_local_dev}
     ports:
-      - "8000:8000"
+      # 8080 by default: port 8000 is a common squatter (this machine already runs a
+      # Kubernetes fastapi-deployment on it, and compose will not publish over that).
+      # Override with API_PORT in .env if 8080 is taken too.
+      - "${API_PORT:-8080}:8000"
     volumes:
       - ./app:/srv/app:ro
 

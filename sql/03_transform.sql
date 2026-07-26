@@ -91,7 +91,7 @@ UNION ALL SELECT 'fact_ftr_bid', count(*) FROM fact_ftr_bid;
 \echo '=== node-name join rate: congestion fact -> pnode dimension ==='
 SELECT count(*)                                                       AS distinct_nodes,
        count(*) FILTER (WHERE d.pnode_id IS NOT NULL)                 AS matched,
-       round(100.0 * count(*) FILTER (WHERE d.pnode_id IS NOT NULL) / count(*), 1) AS pct
+       round(100.0 * count(*) FILTER (WHERE d.pnode_id IS NOT NULL) / nullif(count(*), 0), 1) AS pct
 FROM (SELECT DISTINCT pnode_name_norm FROM fact_nodal_cong_monthly) f
 LEFT JOIN dim_pnode d ON d.pnode_name_norm = f.pnode_name_norm;
 
