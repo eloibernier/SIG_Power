@@ -1,7 +1,15 @@
 # Concepts FAQ — the questions that expose whether you actually understand it
 
-Four things that are easy to say fluently and still get wrong. Each has a wrong reading that
+Seven things that are easy to say fluently and still get wrong. Each has a wrong reading that
 sounds plausible, which is exactly why an interviewer probes them.
+
+1. What the two networks are
+2. Why upgrades can make congestion worse
+3. Why $7.08 is a change, not a cost
+4. Why an FTR is an asset, not a toll
+5. Reading the zone panel — every tile
+6. What kV means and why it is there
+7. Whether generating at a high-congestion node pays
 
 ---
 
