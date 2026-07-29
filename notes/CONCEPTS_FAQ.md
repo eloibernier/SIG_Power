@@ -34,9 +34,71 @@ of the steel in the ground.**
 means the grid then is not the grid now, so the credit calculator needs congestion on the
 *future* network to set collateral sensibly.
 
-**What is not known:** which specific projects are in the case, and the horizon it targets.
-PJM states the adjustment differs between annual and long-term auctions. Say this if asked
-rather than guessing.
+### The decisive evidence that neither column is history
+
+The feed publishes **both** columns for months that have not happened yet:
+
+| effective_day | `onpeak_clmp` (baseline) | `lt_sim_onpeak_clmp` (upgraded) |
+|---|---:|---:|
+| June 2027 | 1.13 | 4.51 |
+| **May 2030** | **−1.17** | **−0.85** |
+
+**There is no realized congestion for May 2030.** So the unprefixed column cannot be outturn —
+it is a simulation on the *current* network, published forward. Both columns are forward-looking
+models differing only in the network they assume.
+
+> *"The feed publishes both columns for May 2030. Neither of them can be what happened."*
+
+That is a cleaner proof than the hourly reconciliation in `validate.py`, and easier to say out
+loud. The reconciliation remains the stronger evidence for a *historical* month, since it shows
+the baseline does not match outturn even where outturn exists.
+
+**Horizon:** `lt_sim_` = long-term simulation; the feed runs at least to May 2030, roughly four
+years forward, consistent with PJM's long-term FTR auctions covering multiple future planning
+periods.
+
+**What is still not known:** which specific upgrade projects are in the adjusted case, and
+whether a past month's values are revised after the fact. Answering that needs historical
+snapshots of the feed. Say so rather than guessing.
+
+---
+
+## 1b. The three numbers people conflate
+
+| Number | What it is | Where it lives | Public? |
+|---|---|---|---|
+| **Settled DA congestion** | What a generator is actually paid, and **what an FTR actually pays out** | `da_hrl_lmps` | Yes |
+| **Auction clearing price** | What you **pay** to acquire the FTR | FTR Center | **No** — behind authentication |
+| **`ftr_cong_lmp` base & adj** | What PJM uses to **size collateral** | this feed | Yes |
+
+**Is an FTR priced off the baseline or the adjusted series? Neither.** It clears at the dual of
+the auction's simultaneous feasibility test, given submitted bids and the *auction's* network
+model. This feed's full name is **"FTR Credit Calculator Congestion LMPs"** — a credit and
+collateral input, not a clearing input.
+
+### Worked example
+
+> System energy 115.80, baseline congestion 5, loss 0, adjusted congestion 20. What is received?
+
+**Neither 5 nor 20.**
+
+```
+paid = 115.80 + actual settled congestion + 0
+```
+
+`actual settled congestion` is a **third number**, living in `da_hrl_lmps`, absent from this
+feed. If it settles at 8, the node is paid $123.80 — not $120.80 and not $135.80.
+
+### So who cares about the adjusted series?
+
+**Not a generator.** It is paid settled LMP; this feed is irrelevant to its revenue.
+
+**Two parties do:**
+
+1. **Anyone posting collateral** — PJM sizes FTR margin off these numbers, regardless of what
+   eventually settles.
+2. **Anyone trading the congestion surface** — it is PJM's own free, published, multi-year view
+   of what planned transmission does to every node. That is the thesis of this project.
 
 ---
 

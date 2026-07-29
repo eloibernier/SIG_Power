@@ -811,6 +811,23 @@ independently using a NERC-holiday-aware calendar, and compare.
 error, a rounding artefact, or a constant offset. Both column families are modelled inputs to
 PJM's FTR credit calculator. Neither is realized outturn.
 
+### A second, cleaner proof found later
+
+The feed publishes **both** columns for months that have not occurred:
+
+| effective_day | baseline | upgrade-adjusted |
+|---|---:|---:|
+| June 2027 | 1.13 | 4.51 |
+| **May 2030** | **−1.17** | **−0.85** |
+
+There is no realized congestion for May 2030, so the unprefixed column cannot be outturn. Both
+series are forward simulations differing only in assumed network. This is easier to state than
+the hourly reconciliation; the reconciliation remains stronger for a *historical* month, where
+it shows the baseline fails to match outturn even where outturn exists.
+
+**Horizon:** `lt_sim_` = long-term simulation, running at least four years forward — consistent
+with PJM's long-term FTR auctions.
+
 ### What survived
 
 The **sign convention** validated cleanly: `system_energy + congestion + loss == total_lmp`
@@ -1123,8 +1140,10 @@ where a fundamentals-driven desk expresses topology views.
    aggregates.
 7. **Four-month publication delay** on `ftr_bids_mnt` — this cannot be run against a live
    auction.
-8. **The `lt_sim` horizon is not pinned down.** PJM states the adjustment differs between
-   annual and long-term auctions. Which is reflected here has not been established.
+8. **The upgrade case's contents are not pinned down.** The horizon is established — the feed
+   runs at least to May 2030, four years forward — but *which* transmission projects are in the
+   adjusted case is not, nor whether a past month's values are revised after the fact.
+   Answering that needs historical snapshots of the feed.
 
 ## The two failures, and what they teach
 
