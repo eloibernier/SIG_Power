@@ -162,3 +162,80 @@ about any individual node inside it.
    receives, not as a bill."**
 4. **"An FTR is an asset you buy that pays the congestion spread — not a toll you pay to move
    power."**
+
+---
+
+## 5. Reading the zone panel — every tile, correctly
+
+### Ground it first: a real nodal price
+
+Hour beginning 16:00 EPT, 15 July 2025 (pulled live from `da_hrl_lmps`):
+
+| | DOM | ComEd |
+|---|---:|---:|
+| System energy price | 115.80 | 115.80 | *identical everywhere in PJM* |
+| Congestion component | **+9.04** | **+4.35** | *location-specific* |
+| Loss component | +0.16 | −0.50 | |
+| **Total LMP** | **$125.00** | **$119.64** | |
+
+A generator injecting in DOM that hour was paid $125.00/MWh; one in ComEd $119.64. Same hour,
+$5.36 apart, and congestion is most of the gap.
+
+### The panel is not showing prices
+
+It shows **only the congestion component**, and it shows **two forecasts of it side by side**
+— not a price plus an adjustment.
+
+| Tile | Common wrong reading | What it actually is |
+|---|---|---|
+| **Baseline congestion** +5.67 | "what we expected" | Modelled congestion across the zone's nodes for that month/class, on **the grid as it stands today** |
+| **Upgrade-adjusted** +7.04 | ❌ "what actually happened" | The **same simulation on the network after planned upgrades**. Also a model |
+| **Upgrade adjustment** +1.37 | ❌ "added to the LMP" | Simply **7.04 − 5.67**. A difference between two *scenarios*, never added to anything |
+| **Within-zone spread** 2.90 sd | — | Standard deviation of (adj − base) across the zone's nodes. Measures how badly the zone average represents any individual node |
+
+### The sentence never to say
+
+> ~~"The adjusted column is what actually happened."~~
+
+**Neither series is outturn** — that is exactly what `etl/validate.py` established. Saying
+"actual" contradicts your own validation result. Always: **two models of the same month, on
+two different networks.**
+
+---
+
+## 6. What does kV mean, and why is it in the table?
+
+Kilovolts — the voltage of the equipment at that node.
+
+| Voltage | What it is |
+|---|---|
+| **500 / 345 kV** | Bulk transmission backbone — long distance, high capacity |
+| **230 / 138 kV** | Regional transmission |
+| **34.5 / 18 / 13.8 kV** | Sub-transmission, distribution delivery points, generator step-up |
+
+It matters because the upgrade case hits the tiers differently: in BGE, sub-transmission nodes
+move ~$1.70/MWh more than backbone nodes — the evidence that upgrades improve the bulk system
+more than they improve delivery *into* load.
+
+---
+
+## 7. "If I generate at a high-congestion node, do I get paid more?"
+
+**Yes — that part is real, and it is the entire economic purpose of nodal pricing.** A node
+with congestion of +14.80 pays a generator $14.80/MWh above the system energy price. High LMP
+is the market shouting *"build generation here."*
+
+Three corrections though:
+
+1. **The Δ column is not money anyone receives.** It is the gap between two forecasts. What a
+   generator is actually paid is the *level* (+14.80, or +41.95 under the upgrade case), not
+   the difference between them.
+2. **The sign flips depending on which side you are on.** High positive congestion is good if
+   you **inject** there and bad if you **withdraw** there. Generator paid more; load pays more.
+3. **You cannot execute that view by generating.** Building a plant means capital, land and
+   years in the interconnection queue. The financial expression of *"this node's congestion
+   will be higher than the market thinks"* **is to buy an FTR sinking at that node.** That is
+   the instrument, and that is what a proprietary desk does.
+
+> The instinct is right — someone who spots it early makes money. They do it by buying the
+> FTR, not by pouring concrete.
